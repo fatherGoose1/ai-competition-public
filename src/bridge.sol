@@ -2,11 +2,11 @@
 pragma solidity ^0.8.12;
 
 // Imports
-import {LinkTokenInterface} from "@chainlink/contracts/src/v0.8/shared/interfaces/LinkTokenInterface.sol";
-import {ConfirmedOwner} from "@chainlink/contracts/src/v0.8/shared/access/ConfirmedOwner.sol";
-import {Chainlink, ChainlinkClient} from "@chainlink/contracts/src/v0.8/ChainlinkClient.sol";
-import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {LinkTokenInterface} from "../lib/chainlink/contracts/src/v0.8/shared/interfaces/LinkTokenInterface.sol";
+import {ConfirmedOwner} from "../lib/chainlink/contracts/src/v0.8/shared/access/ConfirmedOwner.sol";
+import {Chainlink, ChainlinkClient} from "../lib/chainlink/contracts/src/v0.8/ChainlinkClient.sol";
+import {Strings} from "../lib/openzeppelin/contracts/utils/Strings.sol";
+import "../lib/openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /// @title MemBridge contract
 /// @notice crosschain ERC20 token bridge for MEM serverless functions
@@ -75,8 +75,8 @@ contract MemBridge is ChainlinkClient, ConfirmedOwner {
     ) ConfirmedOwner(msg.sender) {
         token = _btoken; // 0x779877A7B0D9E8603169DdbD7836e478b4624789 $LINK
         treasury = _treasury; // 0x747D50C93e6821277805a2B80FE9CBF72EFCe6Cd
-        setChainlinkToken(_linkTokenAddr); // 0x779877A7B0D9E8603169DdbD7836e478b4624789
-        setChainlinkOracle(_oracleAddress); // 0x0FaCf846af22BCE1C7f88D1d55A038F27747eD2B
+        _setChainlinkToken(_linkTokenAddr); // 0x779877A7B0D9E8603169DdbD7836e478b4624789
+        _setChainlinkOracle(_oracleAddress); // 0x0FaCf846af22BCE1C7f88D1d55A038F27747eD2B
         setJobId(_jobId); // "a8356f48569c434eaa4ac5fcb4db5cc0"
         setFeeInHundredthsOfLink(_ofee); // sepolia is zero $LINK fee
         bridgeFee = _bfee; // 0.25% for the launch so uint256(25)
@@ -93,7 +93,7 @@ contract MemBridge is ChainlinkClient, ConfirmedOwner {
         // memid can be redeemed once
         assert(!midIsRedeemed[_memid]);
         // chainlink request
-        Chainlink.Request memory req = buildOperatorRequest(
+        Chainlink.Request memory req = _buildOperatorRequest(
             jobId,
             this.fulfill.selector
         );
@@ -107,25 +107,25 @@ contract MemBridge is ChainlinkClient, ConfirmedOwner {
         string memory url = string.concat(arg1, caller);
 
         // Set Chain req object
-        req.add("method", "GET");
-        req.add("url", url);
-        req.add("path", "amount");
-        req.add(
+        req._add("method", "GET");
+        req._add("url", url);
+        req._add("path", "amount");
+        req._add(
             "headers",
             '["content-type", "application/json", "set-cookie", "sid=14A52"]'
         );
-        req.add("body", "");
-        req.add("contact", "https://t.me/ + add later");
-        req.addInt("multiplier", 1); // MEM store balances in uint256 as well
+        req._add("body", "");
+        req._add("contact", "https://t.me/decentland");
+        req._addInt("multiplier", 1); // MEM store balances in BigInt as well
 
         // Sends the request
-        requestId = sendOperatorRequest(req, oracleFee);
+        requestId = _sendOperatorRequest(req, oracleFee);
         // map requestId to caller
         reqToCaller[requestId] = msg.sender;
         // map the chainlink requestId to memid
         reqToMemId[requestId] = _memid;
-        // map the memid redeeming status to false
-        midIsRedeemed[_memid] = false;
+        // map the memid redeeming status to true
+        midIsRedeemed[_memid] = true;
         return requestId;
     }
     /// @notice This function is called by the Chainlink oracle to resolve a request
@@ -212,7 +212,7 @@ contract MemBridge is ChainlinkClient, ConfirmedOwner {
     /// the oracle calls fees)
     /// @dev This function is called only by the contract owner
     function withdrawLink() public onlyOwner {
-        LinkTokenInterface link = LinkTokenInterface(chainlinkTokenAddress());
+        LinkTokenInterface link = LinkTokenInterface(_chainlinkTokenAddress());
         require(
             link.transfer(msg.sender, link.balanceOf(address(this))),
             "Unable to transfer"
@@ -239,7 +239,7 @@ contract MemBridge is ChainlinkClient, ConfirmedOwner {
     /// @param _oracleAddress The new oracle address
     function setOracleAddress(address _oracleAddress) public onlyOwner {
         oracleAddress = _oracleAddress;
-        setChainlinkOracle(_oracleAddress);
+        _setChainlinkOracle(_oracleAddress);
     }
 
     /// @notice retrieve currently in-use oracle address
